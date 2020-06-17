@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+
+import glob
+import os
+from functools import partial
+
+from locmoss import Moss, Parser, Winnower
+from locmoss.query import JaccardSorted
+
+
+def print_header(s):
+    pad_len =  (78 - len(s))//2
+    padding = " "*pad_len
+    end_padding = " "*(78-len(s)-pad_len)
+    print("/{}+".format("-"*78))
+    print("|{}{}{}|".format(padding, s, end_padding))
+    print("+{}/".format("-"*78))
+
+
+
+def process_files(moss, paths, verbose=True, fail_fast=True):
+    for path in paths:
+        files = [os.path.realpath(file) for file in glob.glob(path)]
+        if verbose:
+            print_header("Processing '{}'".format(path))
+            for file in files:
+                print(file)
+
+        try:
+            moss.update_index(path, glob.glob(path))
+        except Exception as e:
+                print("\t ** Error: {} ** Skipping...".format(e))
+                if fail_fast:
+                    raise
+                continue
+        if verbose:
+            print("Number of fingerprints:", moss.softwares[-1].count_fingerprints())
+
+
+def select_parser_factory(lang):
+    import pygments.lexers
+    if lang is None:
+        return Parser
+    else:
+        return partial(Parser, lexer=pygments.lexers.get_lexer_by_name(lang))
+    #
+    # import pygments.lexers.lisp
+    # import pygments.lexers.c_cpp
+    #
+    # if lang == "scheme":
+    #   return partial(Parser, lexer=pygments.lexers.lisp.RacketLexer())
+    # if lang == "c":
+    #     return partial(Parser, lexer=pygments.lexers.c_cpp.CLexer())
+    # else:
+    #     return Parser
+
+def avg_n_fingerprints(moss):
+    n_software = len(moss.softwares)
+    total = sum(x.count_fingerprints() for x in moss.softwares)
+    return float(total) / n_software
+
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("paths", nargs="*")
+    parser.add_argument( "--language", "-l", default=None)
+    parser.add_argument("--window_size", "-w", default=15, type=int)
+    parser.add_argument("--kgram_len", "-k", default=5, type=int)
+    parser.add_argument("--silent", "-s", action="store_true")
+    parser.add_argument("--fail_fast", action="store_true")
+    parser.add_argument("--size", default=15, type=int)
+
+    args = parser.parse_args()
+    verbose = not args.silent
+
+    parser_factory = select_parser_factory(args.language)
+
+    moss = Moss(parser_factory, Winnower(args.window_size, args.kgram_len))
+
+    process_files(moss, args.paths, verbose=verbose, fail_fast=args.fail_fast)
+
+    print_header("Stats")
+    print("Number of matches:", len(moss.matching_graph.matches))
+    print("Average number of fingerprints: {:.2f}"
+          "".format(avg_n_fingerprints(moss)))
+
+
+    JaccardSorted(max_size=args.size)(moss.matching_graph)
+    f1 = "20171472/20171472_interrogation_juin_s171472.txt"
+    f2 = "20198248/20198248.txt"
+    # f1 = "hpq1.c"
+    # f2 = "hpq2.c"
+    shareprint = moss.matching_graph[(f1, f2)]
+    for fp1, fp2 in zip(shareprint.fingerprints_1, shareprint.fingerprints_2):
+        kg1, kg2 = fp1.kgram, fp2.kgram
+        print("{:6}: {:40}".format(kg1.original_start, str(kg1)),
+              "{:6}: {:40}".format(kg2.original_start, str(kg2)))
+
+
+    if verbose:
+        print("DONE.")

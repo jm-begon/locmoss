@@ -25,12 +25,13 @@ class JaccardSorted(Query):
 
 
     def query_(self, matching_graph):
-        def sort_by_jaccard(indices, common_print):
+        def sort_by_jaccard(t):
+            _, _, common_print = t
             return common_print.jaccard_index()
 
-        ls = sorted(matching_graph, key=sort_by_jaccard, revserve=True)
-        for i, ((software_name_1, software_name2), match) in enumerate(ls):
-            if self.max_size is not None and self.max_size > i:
+        ls = sorted(matching_graph, key=sort_by_jaccard, reverse=True)
+        for i, (software_name_1, software_name2, match) in enumerate(ls):
+            if self.max_size is not None and i > self.max_size:
                 break
 
             jacc_idx = match.jaccard_index()

@@ -2,7 +2,7 @@ from collections import defaultdict
 
 
 
-class CommonPrint(object):
+class Shareprint(object):
     def __init__(self):
         self.fingerprints_1 = []
         self.fingerprints_2 = []
@@ -23,12 +23,22 @@ class CommonPrint(object):
             fp1, fp2 = fp2, fp1
         self.fingerprints_1.append(fp1)
         self.fingerprints_2.append(fp2)
+        return self
 
     def jaccard_index(self):
         n1 = self.software_1.count_fingerprints()
         n2 = self.software_2.count_fingerprints()
         n_inter = len(self)
         return float(n_inter) / (n1 + n2 + n_inter)
+
+    def __repr__(self):
+        ams = ".add_match".join(repr(x) for x in zip(self.fingerprints_1,
+                                                     self.fingerprints_2))
+        if len(ams) > 0:
+            ams = ".add_match" + ams
+
+        return "{}(){}".format(self.__class__.__name__,
+                               ams if len(ams) > 0 else "")
 
 
 
@@ -37,7 +47,7 @@ class MatchingGraph(object):
     def __init__(self):
         self.i2n = []
         self.n2i = {}
-        self.matches = defaultdict(CommonPrint)
+        self.matches = defaultdict(Shareprint)
 
     def _idx(self, name):
         idx = self.n2i.get(name)

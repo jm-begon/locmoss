@@ -1,50 +1,43 @@
 from collections import defaultdict
 
-from .struct import Fingerprint, Skipper, Software
-from .winnowing import Winnower
-from .match import MatchingGraph
+class InvertIndex(object):
+    def __init__(self):
+        self.hash_t = defaultdict(set)
+        self.skips = set()
+
+    def add(self, fingerprint, software, skip=False):
+        if skip:
+            self.skips.add(fingerprint)
+        if fingerprint not in self.skips:
+            self.hash_t[fingerprint].add(software)
 
 
 class Moss(object):
     """
     Start by adding the reference file
     """
-    def __init__(self, parser_factory):
-        self.parser_factory = parser_factory
-        self.collison_table = defaultdict(list)
-        self.matchings = MatchingGraph()
+    def __init__(self, fingerprinter):
+        self.fingerprinter = fingerprinter
+        self.invert_index = InvertIndex()
 
-    @property
-    def matching_graph(self):
-        return self.matchings
+    def fingerprint(self, software):
+        for location, fingerprint in self.fingerprinter.extract_fingerprints(software):
+            software.add_fingerprint(fingerprint, location)
 
-    def _insert(self, fingerprint):
-        ls = self.collison_table.get(fingerprint)
-        # Search for collision
-        if ls is not None:
-            if ls[0].skip:
-                # No need to store anything
-                return
-            for fp in ls:
-                if fingerprint.is_collision(fp):
-                    self.matchings.add_match(fingerprint, fp)
+    def update_index(self, software, reference=False):
+        for fp in software.fingerprints:
+            self.invert_index.add(fp, software, skip=reference)
 
 
-        self.collison_table[fingerprint].append(fingerprint)
+    def build_index(self, softwares, reference_software):
+        self.update_index(reference_software, True)
+        for software in softwares:
+            self.fingerprint(software)
+            self.update_index(software)
 
-    def update_index(self, software_name, software_files, reference=False):
-        fp_factory = Skipper if reference else Fingerprint
-        software = Software(software_name)
 
-        for i, fpath in enumerate(software_files):
-            winnower = Winnower()
-            parser = self.parser_factory(fpath)
-            raw_fingerprints = winnower.compute_fingerprints(parser)
-            source_file = parser.source_file.attach_to_software(software)
 
-            for raw_fp in raw_fingerprints:
-                fingerprint = fp_factory(source_file, fpath, raw_fp)
-                self._insert(fingerprint)
+
 
 
 
