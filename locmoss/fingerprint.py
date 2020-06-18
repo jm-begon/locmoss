@@ -16,4 +16,4 @@ class Fingerprinter(object, metaclass=ABCMeta):
 
     @abstractmethod
     def extract_fingerprints_(self, token_iterator):
-        pass
+        raise StopIteration()

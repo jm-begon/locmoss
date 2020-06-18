@@ -4,8 +4,11 @@ import glob
 import os
 from functools import partial
 
-from locmoss import Moss, Parser, Winnower
-from locmoss.query import JaccardSorted
+from locmoss import MossEngine, Parser, Winnower
+from locmoss.moss import Filter
+from locmoss.query import SoftwareList, CorpusStat, Ranking
+from locmoss.query import CountScorer, JaccardScorer
+from locmoss.software import Software
 
 
 def print_header(s):
@@ -68,6 +71,7 @@ if __name__ == '__main__':
     parser.add_argument( "--language", "-l", default=None)
     parser.add_argument("--window_size", "-w", default=15, type=int)
     parser.add_argument("--kgram_len", "-k", default=5, type=int)
+    parser.add_argument("--collision_threshold", "-c", default=10, type=int)
     parser.add_argument("--silent", "-s", action="store_true")
     parser.add_argument("--fail_fast", action="store_true")
     parser.add_argument("--size", default=15, type=int)
@@ -77,27 +81,18 @@ if __name__ == '__main__':
 
     parser_factory = select_parser_factory(args.language)
 
-    moss = Moss(parser_factory, Winnower(args.window_size, args.kgram_len))
+    fingerprinter = Winnower(parser_factory, args.window_size, args.kgram_len)
+    filter = Filter(args.collision_threshold)
 
-    process_files(moss, args.paths, verbose=verbose, fail_fast=args.fail_fast)
+    moss = MossEngine(fingerprinter, filter)
 
-    print_header("Stats")
-    print("Number of matches:", len(moss.matching_graph.matches))
-    print("Average number of fingerprints: {:.2f}"
-          "".format(avg_n_fingerprints(moss)))
-
-
-    JaccardSorted(max_size=args.size)(moss.matching_graph)
-    f1 = "20171472/20171472_interrogation_juin_s171472.txt"
-    f2 = "20198248/20198248.txt"
-    # f1 = "hpq1.c"
-    # f2 = "hpq2.c"
-    shareprint = moss.matching_graph[(f1, f2)]
-    for fp1, fp2 in zip(shareprint.fingerprints_1, shareprint.fingerprints_2):
-        kg1, kg2 = fp1.kgram, fp2.kgram
-        print("{:6}: {:40}".format(kg1.original_start, str(kg1)),
-              "{:6}: {:40}".format(kg2.original_start, str(kg2)))
-
+    softwares = Software.list_from_globs(args.paths)
 
     if verbose:
-        print("DONE.")
+        print("Building index and matching graph...")
+    moss.build_index(softwares).query(SoftwareList()).query(CorpusStat())
+    rank_query = Ranking(args.size, CountScorer(), JaccardScorer())
+    moss.query(rank_query)
+
+
+

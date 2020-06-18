@@ -2,6 +2,22 @@ from collections import defaultdict
 
 
 class MatchingGraph(object):
+    @classmethod
+    def from_invert_index(cls, invert_index):
+        softwares = invert_index.get_softwares()
+        graph = cls()
+        for s1 in softwares:
+            for fingerprint in s1.yield_fingerprints():
+                matching_software = invert_index[fingerprint]
+                for s2 in matching_software:
+                    if s1.name < s2.name:
+                        # No need to count self matches
+                        # and symetry is taken care of by the graph
+                        graph.add_match(s1, s2, fingerprint)
+
+        return graph
+
+
     def __init__(self):
         self.i2s = []
         self.n2i = {}

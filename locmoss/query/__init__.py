@@ -1,4 +1,7 @@
 from .renderer import TerminalRenderer
-from .query import Sorted, JaccardSorted
+from .scorer import CountScorer, JaccardScorer
+from .query import SoftwareList, CorpusStat, Ranking
 
-__all__ = ["TerminalRenderer", "Sorted", "JaccardSorted"]
+
+__all__ = ["TerminalRenderer", "CountScorer", "JaccardScorer",
+           "SoftwareList", "CorpusStat", "Ranking"]

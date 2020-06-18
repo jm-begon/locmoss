@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+from locmoss.query import TerminalRenderer
+
 from locmoss.match import MatchingGraph
 
 
@@ -7,19 +9,29 @@ class InvertIndex(object):
     """
     `InvertIndex`
     =============
-    Mapping fingerprints to softwares
+    Mapping fingerprints to softwares.
+
+    Content is not supposed to be directly altered (use `add` and `invalidate`)
     """
     def __init__(self):
         self.hash_t = defaultdict(set)
         self.skips = set()
+        self._matching_graph = None
+        self._softwares = None
+
+    def _dirty(self):
+        self._matching_graph = None
+        self._softwares = None
 
     def add(self, fingerprint, software, skip=False):
+        self._dirty()
         if skip:
             self.skips.add(fingerprint)
         if fingerprint not in self.skips:
             self.hash_t[fingerprint].add(software)
 
     def invalidate(self, fingerprint):
+        self._dirty()
         self.skips.add(fingerprint)
 
     def __getitem__(self, fingerprint):
@@ -32,11 +44,27 @@ class InvertIndex(object):
             if fp not in self.skips:
                 yield fp, sw
 
+    def iter_raw(self):
+        for fp, sw in self.hash_t.items():
+            yield fp, sw
+
+    def is_skipped(self, fingerprint):
+        return fingerprint in self.skips
+
+
     def get_softwares(self):
-        all_soft = set()
-        for softwares in self.hash_t.values():
-            all_soft.update(softwares)
-        return all_soft
+        if self._softwares is None:
+            all_soft = set()
+            for softwares in self.hash_t.values():
+                all_soft.update(softwares)
+            self._softwares = all_soft
+        return self._softwares
+
+
+    def derive_matching_graph(self):
+        if self._matching_graph is None:
+            self._matching_graph = MatchingGraph.from_invert_index(self)
+        return self._matching_graph
 
 
 class Filter(object):
@@ -51,15 +79,18 @@ class Filter(object):
 
 
 
-class Moss(object):
+class MossEngine(object):
     """
     Start by adding the reference file
     """
-    def __init__(self, fingerprinter, filter=None):
+    def __init__(self, fingerprinter, filter=None, renderer=None):
         self.fingerprinter = fingerprinter
         if filter is None:
             filter = lambda x: x
         self.filter = filter
+        if renderer is None:
+            renderer = TerminalRenderer()
+        self.renderer = renderer
         self.invert_index = InvertIndex()
 
     def fingerprint(self, software):
@@ -80,19 +111,10 @@ class Moss(object):
         self.filter(self.invert_index)
         return self
 
-    def build_matching_graph(self):
-        softwares = self.invert_index.get_softwares()
-        graph = MatchingGraph()
-        for s1 in softwares:
-            for fingerprint in s1.yield_fingerprints():
-                matching_software = self.invert_index[fingerprint]
-                for s2 in matching_software:
-                    if s1.name < s2.name:
-                        # No need to count self matches
-                        # and symetry is taken care of by the graph
-                        graph.add_match(s1, s2, fingerprint)
 
-        return graph
+    def query(self, a_query):
+        self.renderer(a_query(self.invert_index))
+        return self
 
 
 
