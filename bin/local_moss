@@ -68,13 +68,14 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("paths", nargs="*")
+    parser.add_argument("--reference", "-r", default=None)
     parser.add_argument( "--language", "-l", default=None)
     parser.add_argument("--window_size", "-w", default=15, type=int)
     parser.add_argument("--kgram_len", "-k", default=5, type=int)
     parser.add_argument("--collision_threshold", "-c", default=10, type=int)
-    parser.add_argument("--silent", "-s", action="store_true")
+    parser.add_argument("--silent", action="store_true")
     parser.add_argument("--fail_fast", action="store_true")
-    parser.add_argument("--size", default=15, type=int)
+    parser.add_argument("--size", "-s", default=15, type=int)
 
     args = parser.parse_args()
     verbose = not args.silent
@@ -87,12 +88,14 @@ if __name__ == '__main__':
     moss = MossEngine(fingerprinter, filter)
 
     softwares = Software.list_from_globs(args.paths)
+    reference = None
+    if args.reference is not None:
+        reference = Software.list_from_globs((args.reference,))
 
     if verbose:
         print("Building index and matching graph...")
-    moss.build_index(softwares).query(SoftwareList()).query(CorpusStat())
+    moss.build_index(softwares, reference)
+
+    moss.query(SoftwareList()).query(CorpusStat())
     rank_query = Ranking(args.size, CountScorer(), JaccardScorer())
     moss.query(rank_query)
-
-
-

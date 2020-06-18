@@ -100,7 +100,7 @@ class Ranking(Query):
                 row = [all_scores.software_1.name,
                        all_scores.software_2.name]
                 for scorer, score in zip(self.scorers, all_scores):
-                    row.append(scorer.format_str.format(score))
+                    row.append(scorer.format_score(score))
                 table.append(*row)
 
     def __iter__(self):

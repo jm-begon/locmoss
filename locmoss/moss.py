@@ -97,13 +97,16 @@ class MossEngine(object):
         for location, fingerprint in self.fingerprinter.extract_fingerprints(software):
             software.add_fingerprint(fingerprint, location)
 
+
     def update_index(self, software, reference=False):
         for fp in software.fingerprints:
             self.invert_index.add(fp, software, skip=reference)
 
 
+
     def build_index(self, softwares, reference_software=None):
         if reference_software is not None:
+            self.fingerprint(reference_software)
             self.update_index(reference_software, True)
         for software in softwares:
             self.fingerprint(software)

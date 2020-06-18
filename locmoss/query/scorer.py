@@ -7,9 +7,8 @@ class Scorer(object, metaclass=ABCMeta):
         return self.__class__.__name__
 
 
-    @property
-    def format_str(self):
-        return "{}"
+    def format_score(self, x):
+        return str(x)
 
 
     @property
@@ -37,10 +36,8 @@ class JaccardScorer(Scorer):
     def label(self):
         return "Jaccard index"
 
-    @property
-    def format_str(self):
-        return "{:.2}"
-
+    def format_score(self, x):
+        return "{:.2f}".format(x).zfill(2)
 
     def _count_active_fingerprints(self, invert_index, software):
         n = software.count_fingerprints()
