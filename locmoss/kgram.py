@@ -25,8 +25,7 @@ class Buffer(object):
 
 class KGrams(object):
     @classmethod
-    def default_hash_fn(cls, tokens):
-        s = ''.join(token.symbol for token in tokens)
+    def default_hash_fn(cls, s):
         hashval = sha1(s.encode("utf-8"))
         hashval = hashval.hexdigest()[-4:]
         hashval = int(hashval, 16)  # using last 16 bits of sha-1 digest
@@ -38,11 +37,11 @@ class KGrams(object):
         for token in token_iterator:
             buffer.put(token)
             if buffer.is_full():
-                symbols = list(buffer)
-                yield symbols[0].location, cls(symbols)
+                tokens = list(buffer)
+                yield tokens[0].location, cls([x.symbol for x in tokens])
 
     def __init__(self, symbols):
-        self.symbols = tuple(symbols)
+        self.symbols = ''.join(symbols)
         self.hash_val = self.__class__.default_hash_fn(self.symbols)
 
     def __len__(self):
@@ -52,13 +51,7 @@ class KGrams(object):
         return self.hash_val
 
     def __eq__(self, other):
-        if not isinstance(other, KGrams) or not len(self) == len(other):
-            return False
-
-        for s_tok, o_tok in zip(self.symbols, other.tokens):
-            if s_tok.symbol != o_tok.symbol:
-                return False
-        return True
+        return isinstance(other, KGrams) and other.symbols == self.symbols
 
     def __str__(self):
         return "".join(str(token) for token in self.symbols)

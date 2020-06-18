@@ -6,13 +6,13 @@ from collections import defaultdict
 
 class Software(object):
     @classmethod
-    def list_from_glob(cls, pattern):
-        tree = Tree.from_glob_pattern(pattern)
+    def list_from_globs(cls, patterns, realpath=False):
+        tree = Tree.from_glob_pattern(patterns, realpath)
         return list(tree.to_software())
 
     def __init__(self, name, files=()):
         self.name = name
-        self.source_files = files
+        self.source_files = tuple(files)
         self.fingerprints = defaultdict(list)
 
     def __iter__(self):
@@ -22,8 +22,15 @@ class Software(object):
     def add_fingerprint(self, fingerprint, location):
         self.fingerprints[fingerprint].append(location)
 
+    def yield_fingerprints(self):
+        for fp in self.fingerprints.keys():
+            yield fp
+
+    def __getitem__(self, fingerprint):
+        return self.fingerprints[fingerprint]
+
     def count_fingerprints(self):
-        raise NotImplemented()
+        return len(self.fingerprints)
 
     def __repr__(self):
         return "{}({}, {})".format(self.__class__.__name__,
@@ -34,16 +41,19 @@ class Software(object):
 
 class Tree(object):
     @classmethod
-    def from_glob_pattern(cls, pattern):
+    def from_glob_pattern(cls, patterns, realpath=False):
         tree = cls()
-        for file in glob.glob(pattern):
-            path = os.path.realpath(os.path.expanduser(file))
-            splits = path.split(os.sep)
-            if len(splits[0]) == 0:
-                tup = (os.sep,) + tuple(splits[1:])
-            else:
-                tup = tuple(splits)
-            tree.insert(tup)
+        for pattern in patterns:
+            for file in glob.glob(pattern):
+                path = os.path.expanduser(file)
+                if realpath:
+                    path = os.path.realpath(path)
+                splits = path.split(os.sep)
+                if len(splits[0]) == 0:
+                    tup = (os.sep,) + tuple(splits[1:])
+                else:
+                    tup = tuple(splits)
+                tree.insert(tup)
         return tree
 
 
@@ -78,7 +88,7 @@ class Tree(object):
             files = []
             for source_sub_path in subtree:
                 source_path = os.path.join(software_path, source_sub_path)
-                files.append(SourceFile(source_path))
+                files.append(source_path)
 
             software = Software(software_path, files)
             yield software

@@ -42,8 +42,9 @@ class Parser(object):
         # Adapted from https://github.com/agranya99/MOSS-winnowing-seqMatcher/blob/master/cleanUP.py
         for j, line in enumerate(text.split(os.linesep)):
             line_number = j + 1
-            column_number = 0
-            for token_type, symbol in lexer.get_tokens(line):
+            column_number = 1
+            for token_type, original_symbol in lexer.get_tokens(line):
+                symbol = original_symbol
                 if token_type == pygments.token.Text or token_type in pygments.token.Comment:
                     symbol = None
                 elif token_type == pygments.token.Name:
@@ -54,10 +55,11 @@ class Parser(object):
                     symbol = "F"  # user defined function names as 'F'
 
 
+
                 if symbol is not None:
                     yield Token(symbol, Location(self.fpath, line_number,
                                                  column_number))
 
-                column_number += len(symbol)
+                column_number += len(original_symbol)
 
 

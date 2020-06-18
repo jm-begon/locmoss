@@ -1,15 +1,13 @@
 from nose.tools import assert_equal, assert_not_equal, assert_false
 
-from locmoss.struct import KGrams, Fingerprint
-from locmoss.parser import Token
-from locmoss.software import SourceFile
+from locmoss.kgram import KGrams
 
 
 def get_kgrams():
-    kg1 = KGrams(Token("a", 0, 0), Token("b", 1, 1), Token("c", 2, 2))
-    kg1_p = KGrams(Token("a", 1, 1), Token("b", 2, 3), Token("c", 9, 11))
-    kg2 = KGrams(Token("a", 0, 0), Token("b", 1, 1), Token("g", 2, 2))
-    kg3 = KGrams(Token("a", 0, 0), Token("b", 1, 1))
+    kg1 = KGrams("abc")
+    kg1_p = KGrams("abc")
+    kg2 = KGrams("abg")
+    kg3 = KGrams("ab")
 
     return kg1, kg1_p, kg2, kg3
 

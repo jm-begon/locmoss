@@ -1,4 +1,4 @@
 from .renderer import TerminalRenderer
-from .query import JaccardSorted
+from .query import Sorted, JaccardSorted
 
-__all__ = ["TerminalRenderer", "JaccardSorted"]
+__all__ = ["TerminalRenderer", "Sorted", "JaccardSorted"]

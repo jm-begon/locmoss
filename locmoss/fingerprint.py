@@ -9,7 +9,9 @@ class Fingerprinter(object, metaclass=ABCMeta):
 
     def extract_fingerprints(self, software):
         for source_file in software:
-            yield self.extract_fingerprints_(self.parser_factory(source_file))
+            for x in self.extract_fingerprints_(self.parser_factory(source_file)):
+                yield x
+
 
 
     @abstractmethod
