@@ -54,7 +54,7 @@ class KGrams(object):
         return isinstance(other, KGrams) and other.symbols == self.symbols
 
     def __str__(self):
-        return "".join(str(token) for token in self.symbols)
+        return self.symbols
 
     def __repr__(self):
         return "{}({})".format(self.__class__.__name__,

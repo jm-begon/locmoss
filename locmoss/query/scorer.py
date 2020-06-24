@@ -24,7 +24,7 @@ class Scorer(object, metaclass=ABCMeta):
 class CountScorer(Scorer):
     @property
     def label(self):
-        return "Number of shareprints"
+        return "# Shareprints"
 
 
     def __call__(self, invert_index, software_1, software_2, shareprints):

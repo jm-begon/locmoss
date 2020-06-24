@@ -1,4 +1,10 @@
-from locmoss.query.report import Report
+import os
+
+from datetime import datetime, timedelta
+
+from locmoss.location import LocationIterator
+from locmoss.query.report import Report, Anchor, Anchorable, Reference, \
+    SubSection, Section
 from .scorer import CountScorer
 
 
@@ -6,14 +12,53 @@ class Query(object):
     def __init__(self, label=None):
         self.label = self.__class__.__name__ if label is None else label
 
+
+    def header(self, report):
+        report.add_header(self.label)
+
+
     def query_(self, report, invert_index):
         pass
 
     def __call__(self, invert_index):
         report = Report()
-        report.add_header(self.label)
+        self.header(report)
         self.query_(report, invert_index)
         return report
+
+class MetaData(Query):
+    __HEADER__ = """   __                 _             ___  __  __     __                       _
+  / /  ___   ___ __ _| |   /\/\    /___\/ _\/ _\   /__\ ___ _ __   ___  _ __| |_
+ / /  / _ \ / __/ _` | |  /    \  //  //\ \ \ \   / \/// _ \ '_ \ / _ \| '__| __|
+/ /__| (_) | (_| (_| | | / /\/\ \/ \_// _\ \_\ \ / _  \  __/ |_) | (_) | |  | |_
+\____/\___/ \___\__,_|_| \/    \/\___/  \__/\__/ \/ \_/\___| .__/ \___/|_|   \__|
+                                                           |_|                   """
+    def __init__(self, **context):
+        super().__init__()
+        self.dict = context
+        self.creation = datetime.now()
+
+    def duration_str(self, duration_in_sec):
+        s = str(duration_in_sec)
+        # remove milliseconds and stuff
+        return s.split(".")[0]
+
+    def header(self, report):
+        for line in self.__HEADER__.split(os.linesep):
+            report.add_raw(line)
+
+    def query_(self, report, invert_index):
+        now = datetime.now()
+        with report.add_list("Context") as ls:
+            for k,v in self.dict.items():
+                ls.append("{}: {}".format(k, v))
+
+            ls.append("Hash: {}".format(hash(invert_index)))
+            ls.append("Duration: {}".format(self.duration_str(now - self.creation)))
+
+
+
+
 
 
 class SoftwareList(Query):
@@ -74,9 +119,6 @@ class Ranking(Query):
 
     def query_(self, report, invert_index):
         report.add_raw("First {} results".format(self.max_size))
-        def sort_(t):
-            software1, software2, shareprints = t
-            return self.scorers[0](invert_index, software1, software2, shareprints)
 
         matching_graph = invert_index.derive_matching_graph()
 
@@ -93,17 +135,103 @@ class Ranking(Query):
         ls = ls[:self.max_size]
         self.ranking = [(m.software_1, m.software_2) for m in ls]
 
-        header = ["Software 1", "Software 2"] + [s.label for s in self.scorers]
+        header = ["Rank", "Software 1", "Software 2"] + [s.label for s in self.scorers]
         
         with report.add_table(len(header), header) as table:
-            for all_scores in ls:
-                row = [all_scores.software_1.name,
-                       all_scores.software_2.name]
+            # TODO anchor
+            for i, all_scores in enumerate(ls):
+                s1_name = all_scores.software_1.name
+                s2_name = all_scores.software_2.name
+                anchor = Section.create_anchor(Reference.join(s1_name, s2_name))
+
+                row = [Reference(str(i+1), anchor), s1_name, s2_name]
                 for scorer, score in zip(self.scorers, all_scores):
                     row.append(scorer.format_score(score))
                 table.append(*row)
 
     def __iter__(self):
-        iter(self.ranking)
+        return iter(self.ranking)
 
 
+class MatchingLocations(Query):
+    def __init__(self, software_pairs, label=None):
+        super().__init__(label)
+        self.software_pairs = software_pairs
+
+    def query_(self, report, invert_index):
+        matching_graph = invert_index.derive_matching_graph()
+
+        for soft_1, soft_2 in self.software_pairs:
+            s1_name, s2_name = soft_1.name, soft_2.name
+            anchor = Section.create_anchor(Reference.join(s1_name, s2_name))
+
+            shareprints = matching_graph[(soft_1, soft_2)]
+            report.add(Section("{} VS. {}".format(s1_name, s2_name), anchor))
+            report.add_raw("Matching fingerprints: {}".format(len(shareprints)))
+            report.add_newline()
+
+
+            for fingerprint in shareprints:
+
+                with report.add_list(str(fingerprint)) as report_list:
+                    for software in (soft_1, soft_2):
+                        locations = software[fingerprint]
+                        for location in locations:
+                            desc = "{}:{}:{}".format(location.source_file,
+                                                     location.start_line,
+                                                     location.start_column)
+                            report_list.append(desc)
+
+
+                report.add_newline()
+
+
+
+
+class MatchingSnippets(Query):
+    def __init__(self, software_pairs, pre_lines=5, post_lines=5,
+                 label=None):
+        super().__init__(label)
+        self.software_pairs = software_pairs
+        self.loc_iter = LocationIterator(pre_lines, post_lines)
+
+
+    def query_(self, report, invert_index):
+        matching_graph = invert_index.derive_matching_graph()
+
+        anchors = {}
+
+        for soft_1, soft_2 in self.software_pairs:
+            s1_name, s2_name = soft_1.name, soft_2.name
+            anchor = Section.create_anchor(Reference.join(s1_name, s2_name))
+
+            report.add(Section("{} VS. {}".format(s1_name, s2_name), anchor))
+
+            shareprints = matching_graph[(soft_1, soft_2)]
+
+            with report.add_list("Matching fingerprints: {}".format(len(shareprints))) as li:
+                for fingerprint in shareprints:
+                    ref_s = Reference.join(s1_name, s2_name, str(fingerprint))
+                    anchor = SubSection.create_anchor(ref_s)
+
+                    anchors[ref_s] = anchor
+
+                    li.append(Reference(str(fingerprint), anchor))
+
+
+            report.add_newline()
+
+            for fingerprint in shareprints:
+                s_fp = str(fingerprint)
+                ref_s = Reference.join(s1_name, s2_name, s_fp)
+                report.add(SubSection(s_fp, anchors[ref_s]))
+
+                for software in (soft_1, soft_2):
+                    locations = software[fingerprint]
+                    for location in locations:
+                        desc = "{}:{}:{}".format(location.source_file,
+                                                 location.start_line,
+                                                 location.start_column)
+                        with report.add_snippet(desc) as snippet:
+                            for ln, line in self.loc_iter(location):
+                                snippet.append(ln, line)

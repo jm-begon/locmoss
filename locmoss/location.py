@@ -15,3 +15,21 @@ class Location(object):
                                        repr(self.start_column))
 
 
+class LocationIterator(object):
+    def __init__(self, pre_lines=0, post_lines=0, encoding="latin-1"):
+        self.pre_lines = pre_lines
+        self.post_lines = post_lines
+        self.encoding = encoding
+
+
+    def __call__(self, location):
+        # TODO do something more efficient
+        pre = max(1, location.start_line - self.pre_lines)
+        post = location.start_line + self.post_lines
+        with open(location.source_file, "r", encoding=self.encoding) as hdl:
+            for i, line in enumerate(hdl):
+                line_nb = i + 1
+                if line_nb > post:
+                    break
+                if pre < line_nb:
+                    yield line_nb, line.rstrip()

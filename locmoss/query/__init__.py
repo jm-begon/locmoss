@@ -1,7 +1,9 @@
 from .renderer import TerminalRenderer
 from .scorer import CountScorer, JaccardScorer
-from .query import SoftwareList, CorpusStat, Ranking
+from .query import MetaData, SoftwareList, CorpusStat, Ranking, \
+    MatchingLocations, MatchingSnippets
 
 
 __all__ = ["TerminalRenderer", "CountScorer", "JaccardScorer",
-           "SoftwareList", "CorpusStat", "Ranking"]
+           "MetaData", "SoftwareList", "CorpusStat", "Ranking",
+           "MatchingLocations", "MatchingSnippets"]

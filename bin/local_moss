@@ -1,43 +1,28 @@
 #!/usr/bin/env python
-
-import glob
 import os
 from functools import partial
 
+import sys
+
 from locmoss import MossEngine, Parser, Winnower
 from locmoss.moss import Filter
-from locmoss.query import SoftwareList, CorpusStat, Ranking
+from locmoss.query import MatchingLocations
+from locmoss.query import MetaData
+from locmoss.query import SoftwareList, CorpusStat, Ranking, MatchingSnippets
 from locmoss.query import CountScorer, JaccardScorer
 from locmoss.software import Software
 
 
-def print_header(s):
-    pad_len =  (78 - len(s))//2
-    padding = " "*pad_len
-    end_padding = " "*(78-len(s)-pad_len)
-    print("/{}+".format("-"*78))
-    print("|{}{}{}|".format(padding, s, end_padding))
-    print("+{}/".format("-"*78))
-
-
-
-def process_files(moss, paths, verbose=True, fail_fast=True):
-    for path in paths:
-        files = [os.path.realpath(file) for file in glob.glob(path)]
-        if verbose:
-            print_header("Processing '{}'".format(path))
-            for file in files:
-                print(file)
-
-        try:
-            moss.update_index(path, glob.glob(path))
-        except Exception as e:
-                print("\t ** Error: {} ** Skipping...".format(e))
-                if fail_fast:
-                    raise
-                continue
-        if verbose:
-            print("Number of fingerprints:", moss.softwares[-1].count_fingerprints())
+__DESC__ = "Local MOSS (measure of software similarity). "  \
+           "For ease of use, consider redirecting stdout to a file." \
+           "Report the most similar softwares from a bunch looking for " \
+           "matching fingerprints. A fingerprint is a kgram, and subsets of " \
+           "them are selected by min-hashing over a moving window of " \
+           "consecutives kgrams. See `Schleimer, S., Wilkerson, D. S., " \
+           "& Aiken, A. (2003, June). Winnowing: local algorithms for " \
+           "document fingerprinting. In Proceedings of the 2003 ACM " \
+           "SIGMOD international conference on Management of " \
+           "data (pp. 76-85).` for more details"
 
 
 def select_parser_factory(lang):
@@ -46,39 +31,63 @@ def select_parser_factory(lang):
         return Parser
     else:
         return partial(Parser, lexer=pygments.lexers.get_lexer_by_name(lang))
-    #
-    # import pygments.lexers.lisp
-    # import pygments.lexers.c_cpp
-    #
-    # if lang == "scheme":
-    #   return partial(Parser, lexer=pygments.lexers.lisp.RacketLexer())
-    # if lang == "c":
-    #     return partial(Parser, lexer=pygments.lexers.c_cpp.CLexer())
-    # else:
-    #     return Parser
 
-def avg_n_fingerprints(moss):
-    n_software = len(moss.softwares)
-    total = sum(x.count_fingerprints() for x in moss.softwares)
-    return float(total) / n_software
 
 
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("paths", nargs="*")
-    parser.add_argument("--reference", "-r", default=None)
-    parser.add_argument( "--language", "-l", default=None)
-    parser.add_argument("--window_size", "-w", default=15, type=int)
-    parser.add_argument("--kgram_len", "-k", default=5, type=int)
-    parser.add_argument("--collision_threshold", "-c", default=10, type=int)
-    parser.add_argument("--silent", action="store_true")
-    parser.add_argument("--fail_fast", action="store_true")
-    parser.add_argument("--size", "-s", default=15, type=int)
+    parser = argparse.ArgumentParser(description=__DESC__)
+    parser.add_argument("paths", nargs="*",
+                        help="The paths to the software to analyze."
+                             "Use path pattern for ease.") # TODO more details
+    parser.add_argument("--reference", "-r", action="append",
+                        help="Reference files. Files must be supplied one by one"
+                             "by repeating the option."
+                             "The fingerprints contained in "
+                             "them will be ignored. Useful for plagiarism "
+                             "detection where some code is intended to be "
+                             "shared. ")
+    parser.add_argument( "--language", "-l", default=None,
+                         help="language of the software. If not supplied"
+                              "will be guessed. See the `Short names` at "
+                              "https://pygments.org/docs/lexers/")
+
+    parser.add_argument("--window_size", "-w", default=15, type=int,
+                        help="Size of the min-hashing window. The smaller,"
+                             "the more fingerprints are selected. More robust "
+                             "but much slower.")
+    parser.add_argument("--kgram_len", "-k", default=5, type=int,
+                        help="Size of the kgrams. Optimal size is "
+                             "language-dependent. Longer kgrams will produce "
+                             "less false-positive but will miss more "
+                             "true-positives.")
+    parser.add_argument("--collision_threshold", "-c", default=10, type=int,
+                        help="In how many softwares a fingerprint must appear "
+                             "before being discounted as too common.")
+    parser.add_argument("--short_output", "-s", action="store_true",
+                        help="Reduce the size of the output by masking the "
+                             "matching code and only displaying the "
+                             "mathcing locations.")
+    parser.add_argument("--top", "-t", default=15, type=int,
+                        help="How many matches are reported.")
+    parser.add_argument("--silent", action="store_true",
+                        help="Shut up a few messages on stderr.")
+    parser.add_argument("--pre_lines", default=5, type=int,
+                        help="Number of lines before a fingerprint to display "
+                             "when printing collisions. Ignored for "
+                             "short output.")
+    parser.add_argument("--post_lines", default=5, type=int,
+                        help="Number of lines after a fingerprint to display "
+                             "when printing collisions. Ignored for  "
+                             "short output.")
+
 
     args = parser.parse_args()
     verbose = not args.silent
+
+    metadata_query = MetaData(**{k: v for k, v in args.__dict__.items() if
+                                 k != "paths"})
 
     parser_factory = select_parser_factory(args.language)
 
@@ -88,14 +97,32 @@ if __name__ == '__main__':
     moss = MossEngine(fingerprinter, filter)
 
     softwares = Software.list_from_globs(args.paths)
+
     reference = None
-    if args.reference is not None:
-        reference = Software.list_from_globs((args.reference,))
+    if args.reference is not None and len(args.reference) > 0:
+        reference = Software("Reference", args.reference)
 
     if verbose:
-        print("Building index and matching graph...")
+        print("Building index and matching graph...", file=sys.stderr)
+
     moss.build_index(softwares, reference)
 
-    moss.query(SoftwareList()).query(CorpusStat())
-    rank_query = Ranking(args.size, CountScorer(), JaccardScorer())
-    moss.query(rank_query)
+    if verbose:
+        print("Querying...", file=sys.stderr)
+    # moss.query(metadata_query).query(SoftwareList()).query(CorpusStat())
+    moss.query(metadata_query)
+    moss.query(SoftwareList())
+    moss.query(CorpusStat())
+    rank_query = Ranking(args.top, CountScorer(), JaccardScorer())
+    MatchingQuery = MatchingLocations if args.short_output else \
+        partial(MatchingSnippets, pre_lines=args.pre_lines,
+                post_lines=args.post_lines)
+
+    moss.query(rank_query).query(MatchingQuery(rank_query))
+
+    if verbose:
+        print()
+        print("="*80)
+        print("To re-run the code, use (from {})".format(os.getcwd()))
+        print(" ".join(sys.argv))
+        # TODO shorten the paths stuff

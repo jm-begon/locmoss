@@ -62,4 +62,3 @@ class Parser(object):
 
                 column_number += len(original_symbol)
 
-
