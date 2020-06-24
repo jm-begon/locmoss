@@ -18,6 +18,7 @@ python setup.py install
 ```
 
 ## Usage
-Installation leaves a `local_moss` python script in the path. 
+Installation leaves a `local_moss` python script in the path. See `examples`  
+for a illustrative use.
 
 
