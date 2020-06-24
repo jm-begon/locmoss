@@ -7,7 +7,7 @@ This will consider the `.c` files to form the softwares, with one software per f
 Alternatively, the softwares can be supplied manually: 
 `local_moss --language c --short_output --reference Sort.h insertionsort/Sort.c mergesort_on_heap/Sort.c mergesort_on_stack/Sort.c`
 
-Observe how both implementation of merge sort are found to be much more similar 
+Observe how both implementations of merge sort are found to be much more similar 
 to the other pairings, even though the function signatures (names and number  
 of arguments) are different, as is the tabulation, ordering, variable names, 
 etc.

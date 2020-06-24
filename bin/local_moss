@@ -14,7 +14,7 @@ from locmoss.software import Software
 
 
 __DESC__ = "Local MOSS (measure of software similarity). "  \
-           "For ease of use, consider redirecting stdout to a file." \
+           "For ease of use, consider redirecting stdout to a file. " \
            "Report the most similar softwares from a bunch looking for " \
            "matching fingerprints. A fingerprint is a kgram, and subsets of " \
            "them are selected by min-hashing over a moving window of " \
@@ -22,7 +22,7 @@ __DESC__ = "Local MOSS (measure of software similarity). "  \
            "& Aiken, A. (2003, June). Winnowing: local algorithms for " \
            "document fingerprinting. In Proceedings of the 2003 ACM " \
            "SIGMOD international conference on Management of " \
-           "data (pp. 76-85).` for more details"
+           "data (pp. 76-85)` for more details"
 
 
 def select_parser_factory(lang):
