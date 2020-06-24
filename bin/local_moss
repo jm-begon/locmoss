@@ -123,6 +123,7 @@ if __name__ == '__main__':
     if verbose:
         print()
         print("="*80)
-        print("To re-run the code, use (from {})".format(os.getcwd()))
+        print("To re-run the code, use (from {})"
+              "".format(os.path.realpath(os.getcwd())))
         print(" ".join(sys.argv))
         # TODO shorten the paths stuff

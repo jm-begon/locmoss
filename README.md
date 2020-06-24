@@ -20,8 +20,4 @@ python setup.py install
 ## Usage
 Installation leaves a `local_moss` python script in the path. 
 
-## TODOs
- - [x] code
- - [x] requirements
- - [ ] examples
 
