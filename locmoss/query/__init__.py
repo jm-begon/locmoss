@@ -1,5 +1,5 @@
 from .renderer import TerminalRenderer
-from .scorer import CountScorer, JaccardScorer
+from .scorer import CountScorer, JaccardScorer, TfIdfScorer
 from .query import MetaData, SoftwareList, CorpusStat, Ranking, \
     MatchingLocations, MatchingSnippets
 

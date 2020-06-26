@@ -10,6 +10,7 @@ from locmoss.query import MatchingLocations
 from locmoss.query import MetaData
 from locmoss.query import SoftwareList, CorpusStat, Ranking, MatchingSnippets
 from locmoss.query import CountScorer, JaccardScorer
+from locmoss.query import TfIdfScorer
 from locmoss.software import Software
 
 
@@ -109,7 +110,7 @@ if __name__ == '__main__':
     if verbose:
         print("Querying...", file=sys.stderr)
     moss.query(metadata_query).query(SoftwareList()).query(CorpusStat())
-    rank_query = Ranking(args.top, CountScorer(), JaccardScorer())
+    rank_query = Ranking(args.top, JaccardScorer(), TfIdfScorer(), CountScorer())
     moss.query(rank_query)
 
     if args.output_size == "medium":
