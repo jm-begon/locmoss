@@ -65,10 +65,9 @@ if __name__ == '__main__':
     parser.add_argument("--collision_threshold", "-c", default=10, type=int,
                         help="In how many softwares a fingerprint must appear "
                              "before being discounted as too common.")
-    parser.add_argument("--short_output", "-s", action="store_true",
-                        help="Reduce the size of the output by masking the "
-                             "matching code and only displaying the "
-                             "mathcing locations.")
+    parser.add_argument("--output_size", "-s", default="long",
+                        choices=["short", "medium", "long"],
+                        help="Size of the output to display")
     parser.add_argument("--top", "-t", default=15, type=int,
                         help="How many matches are reported.")
     parser.add_argument("--silent", action="store_true",
@@ -109,16 +108,15 @@ if __name__ == '__main__':
 
     if verbose:
         print("Querying...", file=sys.stderr)
-    # moss.query(metadata_query).query(SoftwareList()).query(CorpusStat())
-    moss.query(metadata_query)
-    moss.query(SoftwareList())
-    moss.query(CorpusStat())
+    moss.query(metadata_query).query(SoftwareList()).query(CorpusStat())
     rank_query = Ranking(args.top, CountScorer(), JaccardScorer())
-    MatchingQuery = MatchingLocations if args.short_output else \
-        partial(MatchingSnippets, pre_lines=args.pre_lines,
-                post_lines=args.post_lines)
+    moss.query(rank_query)
 
-    moss.query(rank_query).query(MatchingQuery(rank_query))
+    if args.output_size == "medium":
+        moss.query(MatchingLocations(rank_query))
+    elif args.output_size == "long":
+        moss.query(MatchingSnippets(rank_query, pre_lines=args.pre_lines,
+                                    post_lines=args.post_lines))
 
     if verbose:
         print()
