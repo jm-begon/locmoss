@@ -1,9 +1,11 @@
 from .renderer import TerminalRenderer
-from .scorer import CountScorer, JaccardScorer, TfIdfScorer
-from .query import MetaData, SoftwareList, CorpusStat, Ranking, \
+from .similarity import CountSimilarity, JaccardSimilarity, TfIdfSimilarity, \
+    Ranking
+from .query import MetaData, SoftwareList, CorpusStat, MostSimilar, \
     MatchingLocations, MatchingSnippets
 
 
-__all__ = ["TerminalRenderer", "CountScorer", "JaccardScorer",
-           "MetaData", "SoftwareList", "CorpusStat", "Ranking",
+__all__ = ["TerminalRenderer", "CountSimilarity", "JaccardSimilarity",
+            "TfIdfSimilarity", "Ranking",
+           "MetaData", "SoftwareList", "CorpusStat", "MostSimilar",
            "MatchingLocations", "MatchingSnippets"]

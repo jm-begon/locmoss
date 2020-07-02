@@ -8,9 +8,9 @@ from locmoss import MossEngine, Parser, Winnower
 from locmoss.moss import Filter
 from locmoss.query import MatchingLocations
 from locmoss.query import MetaData
-from locmoss.query import SoftwareList, CorpusStat, Ranking, MatchingSnippets
-from locmoss.query import CountScorer, JaccardScorer
-from locmoss.query import TfIdfScorer
+from locmoss.query import SoftwareList, CorpusStat, MostSimilar, MatchingSnippets
+from locmoss.query import Ranking, CountSimilarity, JaccardSimilarity, \
+    TfIdfSimilarity
 from locmoss.software import Software
 
 
@@ -109,15 +109,23 @@ if __name__ == '__main__':
 
     if verbose:
         print("Querying...", file=sys.stderr)
-    moss.query(metadata_query).query(SoftwareList()).query(CorpusStat())
-    rank_query = Ranking(args.top, JaccardScorer(), TfIdfScorer(), CountScorer())
-    moss.query(rank_query)
+    moss.query(metadata_query)
+    moss.query(SoftwareList())
+    moss.query(CorpusStat())
 
-    if args.output_size == "medium":
-        moss.query(MatchingLocations(rank_query))
-    elif args.output_size == "long":
-        moss.query(MatchingSnippets(rank_query, pre_lines=args.pre_lines,
-                                    post_lines=args.post_lines))
+    count_sim = moss.query(Ranking.as_query(CountSimilarity()))
+    jaccard_sim = moss.query(Ranking.as_query(JaccardSimilarity()))
+    tf_idf_sim = moss.query(Ranking.as_query(TfIdfSimilarity()))
+
+    with tf_idf_sim.top(args.top):
+
+        moss.query(MostSimilar(tf_idf_sim, jaccard_sim, count_sim))
+
+        if args.output_size == "medium":
+            moss.query(MatchingLocations(tf_idf_sim))
+        elif args.output_size == "long":
+            moss.query(MatchingSnippets(tf_idf_sim, pre_lines=args.pre_lines,
+                                        post_lines=args.post_lines))
 
     if verbose:
         print()

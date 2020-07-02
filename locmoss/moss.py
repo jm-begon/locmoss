@@ -3,6 +3,7 @@ from collections import defaultdict
 from locmoss.query import TerminalRenderer
 
 from locmoss.match import MatchingGraph
+from locmoss.query.report import Report
 
 
 class InvertIndex(object):
@@ -116,8 +117,11 @@ class MossEngine(object):
 
 
     def query(self, a_query):
-        self.renderer(a_query(self.invert_index))
-        return self
+        result = a_query(self.invert_index)
+        if isinstance(result, Report):
+            self.renderer(result)
+        return result
+
 
 
 

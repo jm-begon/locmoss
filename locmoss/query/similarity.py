@@ -1,9 +1,11 @@
 from abc import ABCMeta, abstractmethod
 
 import math
+from contextlib import contextmanager
 
 
-class Scorer(object, metaclass=ABCMeta):
+class Similarity(object, metaclass=ABCMeta):
+
     @property
     def label(self):
         return self.__class__.__name__
@@ -23,7 +25,84 @@ class Scorer(object, metaclass=ABCMeta):
         return 0.0
 
 
-class CountScorer(Scorer):
+
+
+
+class Ranking(object):
+    class ScoredPair(object):
+        def __init__(self, score, software_1, software_2):
+            self.score = score
+            self.software_1 = software_1
+            self.software_2 = software_2
+
+    @classmethod
+    def from_invert_index(cls, similarity, invert_index):
+        ranking = cls(similarity)
+
+
+        matching_graph = invert_index.derive_matching_graph()
+
+        ls = []
+        for software_1, software_2, shareprints in matching_graph:
+            score = similarity(invert_index, software_1, software_2, shareprints)
+            ls.append(cls.ScoredPair(score, software_1, software_2))
+
+        ls.sort(key=lambda x: x.score,
+                reverse=similarity.higher_more_similar)
+
+        map = {}
+        for i, scored_pair in enumerate(ls):
+            map[(scored_pair.software_1, scored_pair.software_2)] = i
+
+        ranking.ranking = ls
+        ranking.map = map
+
+        return ranking
+
+    @classmethod
+    def as_query(cls, similarity):
+        def query(invert_index):
+            return cls.from_invert_index(similarity, invert_index)
+        return query
+
+
+    def __init__(self, similarity):
+        self.similarity = similarity
+        self.ranking = None
+        self.map = None
+        self.max_size = None
+
+    def __iter__(self):
+        for i, scored_pair in enumerate(self.ranking):
+            if self.max_size is None or i < self.max_size:
+                yield scored_pair.score, scored_pair.software_1, \
+                      scored_pair.software_2
+
+    def __getitem__(self, item):
+        s1, s2 = item
+        i = self.map[(s1, s2)]
+        return self.ranking[i].score
+
+    def __len__(self):
+        return len(self.ranking) if self.max_size is None else self.max_size
+
+    @property
+    def label(self):
+        return self.similarity.label
+
+    @contextmanager
+    def top(self, k):
+        max_size = self.max_size
+        self.max_size = k
+        try:
+            yield self
+        finally:
+            self.max_size = max_size
+
+
+
+
+class CountSimilarity(Similarity):
     @property
     def label(self):
         return "# Shareprints"
@@ -33,7 +112,7 @@ class CountScorer(Scorer):
         return len(shareprints)
 
 
-class JaccardScorer(Scorer):
+class JaccardSimilarity(Similarity):
     @property
     def label(self):
         return "Jaccard index"
@@ -55,7 +134,7 @@ class JaccardScorer(Scorer):
         return float(len(shareprints)) / (n_fp1 + n_fp2 - len(shareprints))
 
 
-class TfIdfScorer(Scorer):
+class TfIdfSimilarity(Similarity):
     def __init__(self):
         self.tf_cache = {}
         self.idf_cache = {}
@@ -63,7 +142,7 @@ class TfIdfScorer(Scorer):
 
     @property
     def label(self):
-        return "Cos Tf-Idf"
+        return "Cosine Tf-Idf"
 
     def format_score(self, x):
         return "{:.2f}".format(x).zfill(2)

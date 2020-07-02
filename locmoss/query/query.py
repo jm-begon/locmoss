@@ -5,17 +5,15 @@ from datetime import datetime, timedelta
 from locmoss.location import LocationIterator
 from locmoss.query.report import Report, Anchor, Anchorable, Reference, \
     SubSection, Section
-from .scorer import CountScorer
+from locmoss.query.similarity import Ranking, CountSimilarity
 
 
 class Query(object):
     def __init__(self, label=None):
         self.label = self.__class__.__name__ if label is None else label
 
-
     def header(self, report):
         report.add_header(self.label)
-
 
     def query_(self, report, invert_index):
         pass
@@ -25,6 +23,7 @@ class Query(object):
         self.header(report)
         self.query_(report, invert_index)
         return report
+
 
 class MetaData(Query):
     __HEADER__ = """   __                 _             ___  __  __     __                       _
@@ -55,9 +54,6 @@ class MetaData(Query):
 
             ls.append("Hash: {}".format(hash(invert_index)))
             ls.append("Duration: {}".format(self.duration_str(now - self.creation)))
-
-
-
 
 
 
@@ -92,9 +88,7 @@ class CorpusStat(Query):
             report_list.append("Number of collisions: {}".format(n_collisions))
 
 
-
-
-class Ranking(Query):
+class MostSimilar(Query):
     class AllScores(object):
         def __init__(self, software_1, software_2, scores):
             self.software_1 = software_1
@@ -107,61 +101,52 @@ class Ranking(Query):
                 yield score
 
 
-    def __init__(self, max_size=None, *scorers, label=None):
+    def __init__(self, *rankings, label=None):
         # Ordering follow the scorers[0]
         super().__init__(label)
-        if len(scorers) == 0:
-            scorers = (CountScorer(),)
-        self.scorers = scorers
-        self.max_size = max_size
+        self.rankings = rankings
         self.ranking = ()
 
 
     def query_(self, report, invert_index):
-        report.add_raw("First {} results".format(self.max_size))
+        if len(self.rankings) == 0:
+            ranking = Ranking.from_invert_index(CountSimilarity(), invert_index)
+            self.rankings = (ranking,)
 
-        matching_graph = invert_index.derive_matching_graph()
+        header = ["Rank", "Software 1", "Software 2"] + [r.label for r in
+                                                         self.rankings]
 
-        ls = []
-        for software_1, software_2, shareprints in matching_graph:
-            scores =  tuple(scorer(invert_index, software_1, software_2, shareprints)
-                     for scorer in self.scorers)
-            ls.append(self.__class__.AllScores(software_1, software_2, scores))
+        main_ranking, other_rankings = self.rankings[0], self.rankings[1:]
 
+        report.add_raw("First {} results".format(len(main_ranking)))
 
-        ls.sort(key=lambda x:x.scores,
-                reverse=self.scorers[0].higher_more_similar)
-
-        ls = ls[:self.max_size]
-        self.ranking = [(m.software_1, m.software_2) for m in ls]
-
-        header = ["Rank", "Software 1", "Software 2"] + [s.label for s in self.scorers]
-        
         with report.add_table(len(header), header) as table:
-            # TODO anchor
-            for i, all_scores in enumerate(ls):
-                s1_name = all_scores.software_1.name
-                s2_name = all_scores.software_2.name
+
+            for i, (main_score, software_1, software_2) in enumerate(main_ranking):
+
+                all_scores = [main_score] + [ranking[(software_1, software_2)]
+                                             for ranking in other_rankings]
+                s1_name = software_1.name
+                s2_name = software_2.name
+
                 anchor = Section.create_anchor(Reference.join(s1_name, s2_name))
 
-                row = [Reference(str(i+1), anchor), s1_name, s2_name]
-                for scorer, score in zip(self.scorers, all_scores):
-                    row.append(scorer.format_score(score))
-                table.append(*row)
+                row = [Reference(str(i + 1), anchor), s1_name, s2_name]
 
-    def __iter__(self):
-        return iter(self.ranking)
+                for ranking, score in zip(self.rankings, all_scores):
+                    row.append(ranking.similarity.format_score(score))
+                table.append(*row)
 
 
 class MatchingLocations(Query):
-    def __init__(self, software_pairs, label=None):
+    def __init__(self, ranking, label=None):
         super().__init__(label)
-        self.software_pairs = software_pairs
+        self.ranking = ranking
 
     def query_(self, report, invert_index):
         matching_graph = invert_index.derive_matching_graph()
 
-        for soft_1, soft_2 in self.software_pairs:
+        for _, soft_1, soft_2 in self.ranking:
             s1_name, s2_name = soft_1.name, soft_2.name
             anchor = Section.create_anchor(Reference.join(s1_name, s2_name))
 
@@ -189,10 +174,10 @@ class MatchingLocations(Query):
 
 
 class MatchingSnippets(Query):
-    def __init__(self, software_pairs, pre_lines=5, post_lines=5,
+    def __init__(self, ranking, pre_lines=5, post_lines=5,
                  label=None):
         super().__init__(label)
-        self.software_pairs = software_pairs
+        self.ranking = ranking
         self.loc_iter = LocationIterator(pre_lines, post_lines)
 
 
@@ -201,7 +186,7 @@ class MatchingSnippets(Query):
 
         anchors = {}
 
-        for soft_1, soft_2 in self.software_pairs:
+        for _, soft_1, soft_2 in self.ranking:
             s1_name, s2_name = soft_1.name, soft_2.name
             anchor = Section.create_anchor(Reference.join(s1_name, s2_name))
 

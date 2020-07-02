@@ -12,8 +12,9 @@ class Renderer(object, metaclass=ABCMeta):
         pass
 
     def __call__(self, report):
-        for block in report:
-            self.display(self.dispatch(block))
+        if report is not None:
+            for block in report:
+                self.display(self.dispatch(block))
 
 
     def dispatch(self, block):
